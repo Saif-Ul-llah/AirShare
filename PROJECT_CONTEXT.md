@@ -154,13 +154,21 @@ AirShare/
 - `apps/web/src/app/(auth)/login/page.tsx` - Login page
 - `apps/web/src/app/(auth)/register/page.tsx` - Register page
 - `apps/web/src/app/s/[shareUrl]/page.tsx` - Share page
+- `apps/web/src/app/admin/*.tsx` - Admin panel pages
 - `apps/web/src/lib/api/client.ts` - Axios-based API client
 - `apps/web/src/lib/stores/*.ts` - Zustand stores
 - `apps/web/src/lib/websocket/client.ts` - Socket.IO client
+- `apps/web/src/lib/webrtc/peer-manager.ts` - WebRTC peer manager
+- `apps/web/src/lib/encryption/service.ts` - Encryption service
 - `apps/web/src/providers/*.tsx` - React context providers
 - `apps/web/src/components/ui/*.tsx` - UI primitives
 - `apps/web/src/components/room/*.tsx` - Room-specific components
 - `apps/web/src/components/items/*.tsx` - Item-related components
+- `apps/web/src/components/p2p/*.tsx` - P2P transfer components
+- `apps/web/src/hooks/useItemActions.ts` - Item CRUD with WebSocket sync
+- `apps/web/src/lib/offline/db.ts` - IndexedDB offline storage
+- `apps/web/src/lib/offline/sync.ts` - Offline sync service
+- `apps/web/src/components/offline/*.tsx` - Offline UI components
 
 ### Packages
 - `packages/shared/src/types/index.ts` - All TypeScript types
@@ -224,3 +232,11 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - WebSocket reconnection is automatic with exponential backoff
 - Share pages support all content types with proper rendering
 - Dashboard shows user's rooms grouped by mode (local/internet)
+- Real-time item sync via WebSocket (create/update/delete)
+- Presence indicators show online users in room
+- Client-side encryption using AES-256-GCM
+- P2P file transfer via WebRTC for local mode
+- Admin panel with stats, room/user management, audit logs
+- PWA with service worker and offline capabilities
+- IndexedDB caching for rooms, items, and files
+- Offline queue for pending uploads that sync when online

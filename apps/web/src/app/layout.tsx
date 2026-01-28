@@ -11,6 +11,33 @@ export const metadata: Metadata = {
   keywords: ['file sharing', 'p2p', 'encrypted', 'local network', 'webrtc'],
   authors: [{ name: 'AirShare' }],
   manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'AirShare',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'AirShare',
+    title: 'AirShare - Instant File & Content Sharing',
+    description: 'Share files, text, code, and links instantly with room-based sharing.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'AirShare - Instant File & Content Sharing',
+    description: 'Share files, text, code, and links instantly with room-based sharing.',
+  },
 };
 
 export const viewport: Viewport = {

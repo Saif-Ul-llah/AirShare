@@ -6,6 +6,8 @@ import { useAuthStore } from '@/lib/stores/auth-store';
 import { ThemeProvider } from './ThemeProvider';
 import { WebSocketProvider } from './WebSocketProvider';
 import { EncryptionProvider } from './EncryptionProvider';
+import { OfflineProvider } from './OfflineProvider';
+import { OfflineIndicator } from '@/components/offline';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,11 +52,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthInitializer>
-          <EncryptionProvider>
-            <WebSocketProvider>{children}</WebSocketProvider>
-          </EncryptionProvider>
-        </AuthInitializer>
+        <OfflineProvider>
+          <AuthInitializer>
+            <EncryptionProvider>
+              <WebSocketProvider>
+                {children}
+                <OfflineIndicator />
+              </WebSocketProvider>
+            </EncryptionProvider>
+          </AuthInitializer>
+        </OfflineProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

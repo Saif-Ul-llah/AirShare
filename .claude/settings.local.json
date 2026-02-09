@@ -3,7 +3,8 @@
     "allow": [
       "WebSearch",
       "Bash(pnpm install:*)",
-      "Bash(vercel:*)"
+      "Bash(vercel:*)",
+      "Bash(curl:*)"
     ]
   }
 }

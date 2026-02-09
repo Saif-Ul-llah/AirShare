@@ -2,9 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "builds": [
     {
-      "src": "apps/web/next.config.js",
+      "src": "apps/web/package.json",
       "use": "@vercel/next"
     }
   ],
-  "installCommand": "pnpm install"
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/apps/web/$1"
+    }
+  ]
 }

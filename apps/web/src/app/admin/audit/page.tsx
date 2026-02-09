@@ -45,7 +45,7 @@ export default function AdminAuditPage() {
         category: category || undefined,
         limit: 100,
       });
-      setLogs(response.logs);
+      setLogs(response.data?.logs || []);
     } catch (err) {
       setError('Failed to load audit logs');
       console.error(err);
@@ -65,7 +65,7 @@ export default function AdminAuditPage() {
       log.action?.toLowerCase().includes(query) ||
       log.userId?.toLowerCase().includes(query) ||
       log.roomId?.toLowerCase().includes(query) ||
-      log.details?.toLowerCase().includes(query)
+      String(log.details || '').toLowerCase().includes(query)
     );
   });
 

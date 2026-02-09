@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { hash, verify } from 'argon2';
 import { RoomModel, ItemModel, AuditLogModel } from '../models';
 import { authPlugin } from '../middleware/auth';
 import { roomCreateRateLimiter } from '../middleware/rateLimit';
@@ -7,6 +6,7 @@ import { AppError } from '../middleware/errorHandler';
 import { redisHelpers } from '../config/redis';
 import { ERROR_CODES, ROOM_CODE_LENGTH, ROOM_CODE_CHARSET, DEFAULT_ROOM_SETTINGS, ROOM_EXPIRY } from '@airshare/shared';
 import { CryptoUtils } from '@airshare/crypto';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 function generateRoomCode(): string {
   let code = '';
@@ -51,7 +51,7 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
       let passwordHash: string | undefined;
       let encryptionSalt: string | undefined;
       if (body.password) {
-        passwordHash = await hash(body.password);
+        passwordHash = await hashPassword(body.password);
         // Generate salt for client-side encryption key derivation
         encryptionSalt = CryptoUtils.uint8ArrayToBase64(CryptoUtils.generateSalt());
       }
@@ -138,7 +138,7 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
         if (!query.password) {
           throw new AppError(ERROR_CODES.ROOM_PASSWORD_REQUIRED, 'Password required', 401);
         }
-        const valid = await verify(room.passwordHash!, query.password);
+        const valid = await verifyPassword(room.passwordHash!, query.password);
         if (!valid) {
           throw new AppError(ERROR_CODES.ROOM_PASSWORD_INVALID, 'Invalid password', 401);
         }

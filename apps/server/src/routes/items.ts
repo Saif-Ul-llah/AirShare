@@ -1,11 +1,11 @@
 import { Elysia, t } from 'elysia';
-import { hash, verify } from 'argon2';
 import { RoomModel, ItemModel, VersionModel, AuditLogModel } from '../models';
 import { authPlugin } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { s3Helpers } from '../config/s3';
 import { ERROR_CODES } from '@airshare/shared';
 import { nanoid } from 'nanoid';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 export const itemRoutes = new Elysia({ prefix: '/items' })
   .use(authPlugin)
@@ -39,7 +39,7 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
         accessConfig = {
           ...accessConfig,
           type: 'password' as const,
-          passwordHash: await hash(accessConfig.password),
+          passwordHash: await hashPassword(accessConfig.password),
         };
         delete (accessConfig as { password?: string }).password;
       }
@@ -146,7 +146,7 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
         if (!query.password) {
           throw new AppError(ERROR_CODES.ROOM_PASSWORD_REQUIRED, 'Password required', 401);
         }
-        const valid = await verify(item.access.passwordHash!, query.password);
+        const valid = await verifyPassword(item.access.passwordHash!, query.password);
         if (!valid) {
           throw new AppError(ERROR_CODES.ROOM_PASSWORD_INVALID, 'Invalid password', 401);
         }
@@ -222,7 +222,7 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
         if (!query.password) {
           throw new AppError(ERROR_CODES.ROOM_PASSWORD_REQUIRED, 'Password required', 401);
         }
-        const valid = await verify(item.access.passwordHash!, query.password);
+        const valid = await verifyPassword(item.access.passwordHash!, query.password);
         if (!valid) {
           throw new AppError(ERROR_CODES.ROOM_PASSWORD_INVALID, 'Invalid password', 401);
         }

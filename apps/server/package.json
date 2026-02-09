@@ -12,6 +12,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@airshare/crypto": "workspace:*",
     "@airshare/shared": "workspace:*",
     "@aws-sdk/client-s3": "^3.500.0",
     "@aws-sdk/s3-request-presigner": "^3.500.0",

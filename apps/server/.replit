@@ -1,0 +1,13 @@
+run = "bun run start"
+entrypoint = "src/index.ts"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "bun run start"]
+deploymentTarget = "cloudrun"
+
+[[ports]]
+localPort = 4000
+externalPort = 80

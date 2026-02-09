@@ -26,6 +26,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@airshare/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@airshare/shared':
         specifier: workspace:*
         version: link:../../packages/shared

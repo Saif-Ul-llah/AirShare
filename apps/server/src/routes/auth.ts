@@ -1,5 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { hash, verify } from 'argon2';
 import { UserModel } from '../models';
 import { AuditLogModel } from '../models';
 import { authPlugin, generateTokens, verifyRefreshToken, requireAuth } from '../middleware/auth';
@@ -7,6 +6,7 @@ import { authRateLimiter } from '../middleware/rateLimit';
 import { redisHelpers } from '../config/redis';
 import { AppError } from '../middleware/errorHandler';
 import { ERROR_CODES, registerUserSchema, loginUserSchema, updateUserSchema, changePasswordSchema } from '@airshare/shared';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
   .use(authPlugin)
@@ -25,7 +25,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       }
 
       // Hash password
-      const passwordHash = await hash(password);
+      const passwordHash = await hashPassword(password);
 
       // Create user
       const user = await UserModel.create({
@@ -90,7 +90,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       }
 
       // Verify password
-      const valid = await verify(user.passwordHash, password);
+      const valid = await verifyPassword(user.passwordHash, password);
       if (!valid) {
         await AuditLogModel.log({
           userId: user._id,
@@ -243,13 +243,13 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       }
 
       // Verify current password
-      const valid = await verify(user.passwordHash, body.currentPassword);
+      const valid = await verifyPassword(user.passwordHash, body.currentPassword);
       if (!valid) {
         throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Current password is incorrect', 400);
       }
 
       // Hash new password
-      user.passwordHash = await hash(body.newPassword);
+      user.passwordHash = await hashPassword(body.newPassword);
       await user.save();
 
       // Invalidate all sessions except current

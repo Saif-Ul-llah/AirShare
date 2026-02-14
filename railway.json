@@ -2,6 +2,6 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "dockerfile",
-    "buildCommand": "docker build -f apps/server/Dockerfile -t airshare-server ."
+    "dockerfilePath": "apps/server/Dockerfile"
   }
 }

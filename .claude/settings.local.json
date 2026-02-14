@@ -4,7 +4,9 @@
       "WebSearch",
       "Bash(pnpm install:*)",
       "Bash(vercel:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

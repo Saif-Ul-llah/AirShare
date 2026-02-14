@@ -1,8 +1,11 @@
-FROM oven/bun:latest AS builder
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install pnpm
+# Install Bun
+RUN npm install -g bun
+
+# Install pnpm globally
 RUN npm install -g pnpm@latest
 
 # Copy package files first
@@ -12,7 +15,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps ./apps
 
-# Install dependencies using pnpm (respects workspace)
+# Install dependencies using pnpm
 RUN pnpm install --frozen-lockfile
 
 # Build the server using pnpm

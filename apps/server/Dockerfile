@@ -2,17 +2,19 @@ FROM oven/bun:latest AS builder
 
 WORKDIR /app
 
-# Copy root workspace config files
-COPY package.json bun.lock pnpm-lock.yaml pnpm-workspace.yaml ./
+# Copy package files first (these change less frequently)
+COPY package.json ./
+COPY bun.lock ./
+COPY pnpm-workspace.yaml ./
 
-# Copy all packages and apps
+# Install dependencies before copying source code
+RUN bun install
+
+# Now copy the actual source code
 COPY packages ./packages
 COPY apps ./apps
 
-# Install all dependencies in the monorepo
-RUN bun install --frozen-lockfile
-
-# Build the server using the build script from package.json
+# Build the server
 RUN cd apps/server && bun build src/index.ts --outdir dist --target bun
 
 # Runtime stage

@@ -4,9 +4,12 @@ import { AuditLogModel } from '../models';
 import { authPlugin, generateTokens, verifyRefreshToken, requireAuth } from '../middleware/auth';
 import { authRateLimiter } from '../middleware/rateLimit';
 import { redisHelpers } from '../config/redis';
-import { AppError } from '../middleware/errorHandler';
 import { ERROR_CODES, registerUserSchema, loginUserSchema, updateUserSchema, changePasswordSchema } from '@airshare/shared';
 import { hashPassword, verifyPassword } from '../utils/password';
+
+function errorResponse(code: string, message: string) {
+  return { success: false as const, error: { code, message } };
+}
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
   .use(authPlugin)
@@ -15,13 +18,14 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   // Register
   .post(
     '/register',
-    async ({ body, jwt }) => {
+    async ({ body, jwt, set }) => {
       const { email, password, displayName } = body;
 
       // Check if user exists
       const existing = await UserModel.findByEmail(email);
       if (existing) {
-        throw new AppError(ERROR_CODES.USER_EXISTS, 'Email already registered', 409);
+        set.status = 409;
+        return errorResponse(ERROR_CODES.USER_EXISTS, 'Email already registered');
       }
 
       // Hash password
@@ -38,12 +42,12 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       const tokens = await generateTokens(jwt, user._id.toString());
 
       // Audit log
-      await AuditLogModel.log({
+      AuditLogModel.log({
         userId: user._id,
         action: 'user.registered',
         category: 'user',
         actor: { type: 'user', userId: user._id },
-      });
+      }).catch(() => {});
 
       return {
         success: true,
@@ -65,52 +69,46 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   // Login
   .post(
     '/login',
-    async ({ body, jwt, headers }) => {
+    async ({ body, jwt, set, headers }) => {
       try {
         const { email, password } = body;
 
         // Find user
         const user = await UserModel.findByEmail(email);
         if (!user) {
-          // Log failed attempt
-          try {
-            await AuditLogModel.log({
-              action: 'security.failed_login',
-              category: 'security',
-              actor: {
-                type: 'anonymous',
-                ip: headers['x-forwarded-for']?.toString() || undefined,
-              },
-              details: { email },
-            });
-          } catch {
-            // Ignore audit log errors
-          }
-          throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password', 401);
+          AuditLogModel.log({
+            action: 'security.failed_login',
+            category: 'security',
+            actor: {
+              type: 'anonymous',
+              ip: headers['x-forwarded-for']?.toString() || undefined,
+            },
+            details: { email },
+          }).catch(() => {});
+          set.status = 401;
+          return errorResponse(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password');
         }
 
         // Check suspension
         if (user.isSuspended && user.isSuspended()) {
-          throw new AppError(ERROR_CODES.USER_SUSPENDED, 'Account suspended', 403);
+          set.status = 403;
+          return errorResponse(ERROR_CODES.USER_SUSPENDED, 'Account suspended');
         }
 
         // Verify password
         const valid = await verifyPassword(user.passwordHash, password);
         if (!valid) {
-          try {
-            await AuditLogModel.log({
-              userId: user._id,
-              action: 'security.failed_login',
-              category: 'security',
-              actor: {
-                type: 'anonymous',
-                ip: headers['x-forwarded-for']?.toString() || undefined,
-              },
-            });
-          } catch {
-            // Ignore audit log errors
-          }
-          throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password', 401);
+          AuditLogModel.log({
+            userId: user._id,
+            action: 'security.failed_login',
+            category: 'security',
+            actor: {
+              type: 'anonymous',
+              ip: headers['x-forwarded-for']?.toString() || undefined,
+            },
+          }).catch(() => {});
+          set.status = 401;
+          return errorResponse(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password');
         }
 
         // Update last login
@@ -126,9 +124,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
           action: 'user.login',
           category: 'user',
           actor: { type: 'user', userId: user._id },
-        }).catch(() => {
-          // Ignore audit log errors
-        });
+        }).catch(() => {});
 
         return {
           success: true,
@@ -138,13 +134,9 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
           },
         };
       } catch (error) {
-        // Re-throw AppErrors
-        if (error instanceof AppError) {
-          throw error;
-        }
-        // Log unexpected errors
         console.error('[Login Error]', error);
-        throw new AppError(ERROR_CODES.INTERNAL_ERROR, 'Login failed', 500);
+        set.status = 500;
+        return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Login failed');
       }
     },
     {
@@ -158,16 +150,18 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   // Refresh token
   .post(
     '/refresh',
-    async ({ body, jwt }) => {
+    async ({ body, jwt, set }) => {
       const result = await verifyRefreshToken(jwt, body.refreshToken);
       if (!result) {
-        throw new AppError(ERROR_CODES.TOKEN_INVALID, 'Invalid refresh token', 401);
+        set.status = 401;
+        return errorResponse(ERROR_CODES.TOKEN_INVALID, 'Invalid refresh token');
       }
 
       // Get user
       const user = await UserModel.findById(result.userId);
       if (!user) {
-        throw new AppError(ERROR_CODES.NOT_FOUND, 'User not found', 404);
+        set.status = 404;
+        return errorResponse(ERROR_CODES.NOT_FOUND, 'User not found');
       }
 
       // Delete old session and create new one
@@ -193,21 +187,22 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     if (user && sessionId) {
       await redisHelpers.deleteSession(sessionId, user._id.toString());
 
-      await AuditLogModel.log({
+      AuditLogModel.log({
         userId: user._id,
         action: 'user.logout',
         category: 'user',
         actor: { type: 'user', userId: user._id },
-      });
+      }).catch(() => {});
     }
 
     return { success: true };
   })
 
   // Get current user
-  .get('/me', async ({ user }) => {
+  .get('/me', async ({ user, set }) => {
     if (!user) {
-      throw AppError.unauthorized();
+      set.status = 401;
+      return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
     }
 
     return {
@@ -219,9 +214,10 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   // Update profile
   .patch(
     '/me',
-    async ({ user, body }) => {
+    async ({ user, body, set }) => {
       if (!user) {
-        throw AppError.unauthorized();
+        set.status = 401;
+        return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
       }
 
       if (body.displayName !== undefined) {
@@ -257,15 +253,17 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   // Change password
   .post(
     '/change-password',
-    async ({ user, body }) => {
+    async ({ user, body, set }) => {
       if (!user) {
-        throw AppError.unauthorized();
+        set.status = 401;
+        return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
       }
 
       // Verify current password
       const valid = await verifyPassword(user.passwordHash, body.currentPassword);
       if (!valid) {
-        throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Current password is incorrect', 400);
+        set.status = 400;
+        return errorResponse(ERROR_CODES.INVALID_CREDENTIALS, 'Current password is incorrect');
       }
 
       // Hash new password

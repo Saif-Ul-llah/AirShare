@@ -66,66 +66,86 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   .post(
     '/login',
     async ({ body, jwt, headers }) => {
-      const { email, password } = body;
+      try {
+        const { email, password } = body;
 
-      // Find user
-      const user = await UserModel.findByEmail(email);
-      if (!user) {
-        // Log failed attempt
-        await AuditLogModel.log({
-          action: 'security.failed_login',
-          category: 'security',
-          actor: {
-            type: 'anonymous',
-            ip: headers['x-forwarded-for']?.toString() || undefined,
-          },
-          details: { email },
-        });
-        throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password', 401);
-      }
+        // Find user
+        const user = await UserModel.findByEmail(email);
+        if (!user) {
+          // Log failed attempt
+          try {
+            await AuditLogModel.log({
+              action: 'security.failed_login',
+              category: 'security',
+              actor: {
+                type: 'anonymous',
+                ip: headers['x-forwarded-for']?.toString() || undefined,
+              },
+              details: { email },
+            });
+          } catch {
+            // Ignore audit log errors
+          }
+          throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password', 401);
+        }
 
-      // Check suspension
-      if (user.isSuspended && user.isSuspended()) {
-        throw new AppError(ERROR_CODES.USER_SUSPENDED, 'Account suspended', 403);
-      }
+        // Check suspension
+        if (user.isSuspended && user.isSuspended()) {
+          throw new AppError(ERROR_CODES.USER_SUSPENDED, 'Account suspended', 403);
+        }
 
-      // Verify password
-      const valid = await verifyPassword(user.passwordHash, password);
-      if (!valid) {
-        await AuditLogModel.log({
+        // Verify password
+        const valid = await verifyPassword(user.passwordHash, password);
+        if (!valid) {
+          try {
+            await AuditLogModel.log({
+              userId: user._id,
+              action: 'security.failed_login',
+              category: 'security',
+              actor: {
+                type: 'anonymous',
+                ip: headers['x-forwarded-for']?.toString() || undefined,
+              },
+            });
+          } catch {
+            // Ignore audit log errors
+          }
+          throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password', 401);
+        }
+
+        // Update last login
+        user.lastLoginAt = new Date();
+        await user.save();
+
+        // Generate tokens
+        const tokens = await generateTokens(jwt, user._id.toString());
+
+        // Audit log (non-blocking)
+        AuditLogModel.log({
           userId: user._id,
-          action: 'security.failed_login',
-          category: 'security',
-          actor: {
-            type: 'anonymous',
-            ip: headers['x-forwarded-for']?.toString() || undefined,
-          },
+          action: 'user.login',
+          category: 'user',
+          actor: { type: 'user', userId: user._id },
+        }).catch(() => {
+          // Ignore audit log errors
         });
-        throw new AppError(ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password', 401);
+
+        return {
+          success: true,
+          data: {
+            user: user.toJSON(),
+            ...tokens,
+          },
+        };
+      } catch (error) {
+        // Re-throw AppErrors
+        if (error instanceof AppError) {
+          throw error;
+        }
+        // Log unexpected errors
+        console.error('[Login Error]', error);
+        throw new AppError(ERROR_CODES.INTERNAL_ERROR, 'Login failed', 500);
       }
-
-      // Update last login
-      user.lastLoginAt = new Date();
-      await user.save();
-
-      // Generate tokens
-      const tokens = await generateTokens(jwt, user._id.toString());
-
-      // Audit log
-      await AuditLogModel.log({
-        userId: user._id,
-        action: 'user.login',
-        category: 'user',
-        actor: { type: 'user', userId: user._id },
-      });
-
-      return {
-        success: true,
-        data: {
-          user: user.toJSON(),
-          ...tokens,
-        },
-      };
     },
     {
       body: t.Object({

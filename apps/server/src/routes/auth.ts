@@ -199,25 +199,27 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   })
 
   // Debug auth (temporary)
-  .get('/debug', async ({ jwt, headers }) => {
+  .get('/debug', async ({ jwt, headers, user, authDebug }: any) => {
     const authorization = headers.authorization;
     if (!authorization) return { error: 'no auth header' };
 
     const token = authorization.slice(7);
     try {
       const payload = await jwt.verify(token);
-      if (!payload) return { error: 'jwt.verify returned false', tokenPrefix: token.slice(0, 20) };
-      return { ok: true, payload, type: typeof payload };
+      return {
+        jwtVerify: payload ? { ok: true, payload } : { ok: false },
+        deriveResult: { hasUser: !!user, authDebug },
+      };
     } catch (e: any) {
-      return { error: 'jwt.verify threw', message: e.message };
+      return { error: 'jwt.verify threw', message: e.message, deriveResult: { hasUser: !!user, authDebug } };
     }
   })
 
   // Get current user
-  .get('/me', async ({ user, set }) => {
+  .get('/me', async ({ user, set, authDebug }: any) => {
     if (!user) {
       set.status = 401;
-      return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
+      return { success: false, error: { code: ERROR_CODES.UNAUTHORIZED, message: 'Unauthorized' }, debug: { authDebug } };
     }
 
     return {

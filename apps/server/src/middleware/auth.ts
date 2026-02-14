@@ -21,7 +21,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
     const authorization = headers.authorization;
 
     if (!authorization || !authorization.startsWith('Bearer ')) {
-      return { user: null, sessionId: null };
+      return { user: null, sessionId: null, authDebug: 'no-token' };
     }
 
     const token = authorization.slice(7);
@@ -29,37 +29,29 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
     try {
       const payload = await jwt.verify(token) as JWTPayload | false;
 
-      if (!payload || payload.type !== 'access') {
-        return { user: null, sessionId: null };
+      if (!payload) {
+        return { user: null, sessionId: null, authDebug: 'jwt-verify-false' };
       }
 
-      // Check session in Redis (non-blocking - trust JWT if Redis fails)
-      try {
-        const session = await redisHelpers.getSession(payload.sessionId);
-        if (!session) {
-          console.warn('[Auth] Session not found in Redis for:', payload.sessionId, '- trusting JWT');
-        }
-      } catch (redisError) {
-        console.error('[Auth] Redis session lookup failed:', redisError, '- trusting JWT');
+      if (payload.type !== 'access') {
+        return { user: null, sessionId: null, authDebug: `wrong-type:${payload.type}` };
       }
 
-      // Get user (JWT is already verified, so we trust the userId)
+      // Skip Redis session check - trust JWT signature
+      // Get user
       const user = await UserModel.findById(payload.userId);
       if (!user) {
-        console.warn('[Auth] User not found:', payload.userId);
-        return { user: null, sessionId: null };
+        return { user: null, sessionId: null, authDebug: `user-not-found:${payload.userId}` };
       }
 
       // Check if suspended
       if (user.isSuspended && user.isSuspended()) {
-        throw AppError.forbidden('Account suspended');
+        return { user: null, sessionId: null, authDebug: 'suspended' };
       }
 
-      return { user, sessionId: payload.sessionId };
+      return { user, sessionId: payload.sessionId, authDebug: 'ok' };
     } catch (error) {
-      if (error instanceof AppError) throw error;
-      console.error('[Auth] Unexpected auth error:', error);
-      return { user: null, sessionId: null };
+      return { user: null, sessionId: null, authDebug: `error:${error instanceof Error ? error.message : String(error)}` };
     }
   });
 

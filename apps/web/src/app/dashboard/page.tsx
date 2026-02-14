@@ -31,7 +31,7 @@ export default function DashboardPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated (only after auth is fully initialized)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');

@@ -5,7 +5,8 @@
       "Bash(pnpm install:*)",
       "Bash(vercel:*)",
       "Bash(curl:*)",
-      "Bash(\"D:\\\\Saif\\\\AirShare\\\\apps\\\\server\\\\Dockerfile\" << 'EOF'\nFROM oven/bun:latest AS builder\n\nWORKDIR /app\n\n# Copy monorepo files\nCOPY pnpm-workspace.yaml pnpm-lock.yaml package.json bun.lock ./\n\n# Copy all packages\nCOPY packages ./packages\nCOPY apps/server ./apps/server\n\n# Install dependencies\nRUN bun install\n\n# Build the server\nRUN cd apps/server && bun build src/index.ts --outdir dist --target bun\n\n# Runtime stage\nFROM oven/bun:latest\n\nWORKDIR /app\n\n# Copy built artifacts and node_modules\nCOPY --from=builder /app/apps/server/dist ./dist\nCOPY --from=builder /app/node_modules ./node_modules\nCOPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules\n\nEXPOSE 4000\n\nCMD [\"bun\", \"dist/index.js\"]\nEOF)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

@@ -33,15 +33,26 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
         return { user: null, sessionId: null };
       }
 
-      // Check session in Redis
-      const session = await redisHelpers.getSession(payload.sessionId);
+      // Check session in Redis (with fallback)
+      let session;
+      try {
+        session = await redisHelpers.getSession(payload.sessionId);
+      } catch (redisError) {
+        console.error('[Auth] Redis session lookup failed:', redisError);
+        // Fallback: if Redis fails, still allow the request if JWT is valid
+        // This ensures auth doesn't break when Redis has issues
+        session = { sessionId: payload.sessionId };
+      }
+
       if (!session) {
+        console.warn('[Auth] Session not found for:', payload.sessionId);
         return { user: null, sessionId: null };
       }
 
       // Get user
       const user = await UserModel.findById(payload.userId);
       if (!user) {
+        console.warn('[Auth] User not found:', payload.userId);
         return { user: null, sessionId: null };
       }
 
@@ -53,6 +64,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
       return { user, sessionId: payload.sessionId };
     } catch (error) {
       if (error instanceof AppError) throw error;
+      console.error('[Auth] Unexpected auth error:', error);
       return { user: null, sessionId: null };
     }
   });

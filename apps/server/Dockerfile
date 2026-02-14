@@ -2,20 +2,21 @@ FROM oven/bun:latest AS builder
 
 WORKDIR /app
 
-# Copy package files first (these change less frequently)
-COPY package.json ./
-COPY bun.lock ./
-COPY pnpm-workspace.yaml ./
+# Install pnpm
+RUN npm install -g pnpm@latest
 
-# Install dependencies before copying source code
-RUN bun install
+# Copy package files first
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 
-# Now copy the actual source code
+# Copy packages and apps
 COPY packages ./packages
 COPY apps ./apps
 
-# Build the server
-RUN cd apps/server && bun build src/index.ts --outdir dist --target bun
+# Install dependencies using pnpm (respects workspace)
+RUN pnpm install --frozen-lockfile
+
+# Build the server using pnpm
+RUN pnpm --filter @airshare/server build
 
 # Runtime stage
 FROM oven/bun:latest

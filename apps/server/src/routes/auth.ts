@@ -198,6 +198,21 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
     return { success: true };
   })
 
+  // Debug auth (temporary)
+  .get('/debug', async ({ jwt, headers }) => {
+    const authorization = headers.authorization;
+    if (!authorization) return { error: 'no auth header' };
+
+    const token = authorization.slice(7);
+    try {
+      const payload = await jwt.verify(token);
+      if (!payload) return { error: 'jwt.verify returned false', tokenPrefix: token.slice(0, 20) };
+      return { ok: true, payload, type: typeof payload };
+    } catch (e: any) {
+      return { error: 'jwt.verify threw', message: e.message };
+    }
+  })
+
   // Get current user
   .get('/me', async ({ user, set }) => {
     if (!user) {

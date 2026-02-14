@@ -2,7 +2,6 @@ import { Elysia, t } from 'elysia';
 import { RoomModel, ItemModel, AuditLogModel } from '../models';
 import { authPlugin } from '../middleware/auth';
 import { roomCreateRateLimiter } from '../middleware/rateLimit';
-import { AppError } from '../middleware/errorHandler';
 import { redisHelpers } from '../config/redis';
 import { ERROR_CODES, ROOM_CODE_LENGTH, ROOM_CODE_CHARSET, DEFAULT_ROOM_SETTINGS, ROOM_EXPIRY } from '@airshare/shared';
 import { CryptoUtils } from '@airshare/crypto';
@@ -17,15 +16,19 @@ function generateRoomCode(): string {
   return code;
 }
 
+function errorResponse(code: string, message: string) {
+  return { success: false as const, error: { code, message } };
+}
+
 export const roomRoutes = new Elysia({ prefix: '/rooms' })
   .use(authPlugin)
 
   // Create room
   .post(
     '/',
-    async ({ body, user }) => {
+    async ({ body, user, set }) => {
       // Generate unique code
-      let code: string;
+      let code: string = '';
       let attempts = 0;
       do {
         code = generateRoomCode();
@@ -35,7 +38,8 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
       } while (attempts < 10);
 
       if (attempts >= 10) {
-        throw AppError.internal('Failed to generate unique room code');
+        set.status = 500;
+        return errorResponse(ERROR_CODES.INTERNAL_ERROR, 'Failed to generate unique room code');
       }
 
       // Calculate expiry
@@ -71,7 +75,7 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
       });
 
       // Audit log
-      await AuditLogModel.log({
+      AuditLogModel.log({
         roomId: room._id,
         userId: user?._id,
         action: 'room.created',
@@ -81,14 +85,14 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
           userId: user?._id,
         },
         details: { mode: body.mode, access: room.access },
-      });
+      }).catch(() => {});
 
       return {
         success: true,
         data: {
           room: {
             ...room.toJSON(),
-            encryptionSalt: room.encryptionSalt, // Include for client encryption
+            encryptionSalt: room.encryptionSalt,
           },
         },
       };
@@ -118,35 +122,40 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   // Get room by code
   .get(
     '/:code',
-    async ({ params, query, user }) => {
+    async ({ params, query, user, set }) => {
       const room = await RoomModel.findOne({
         code: params.code.toUpperCase(),
         deletedAt: null,
       });
 
       if (!room) {
-        throw new AppError(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found', 404);
+        set.status = 404;
+        return errorResponse(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found');
       }
 
       // Check expiry
       if (room.expiresAt && room.expiresAt < new Date()) {
-        throw new AppError(ERROR_CODES.ROOM_EXPIRED, 'Room has expired', 410);
+        set.status = 410;
+        return errorResponse(ERROR_CODES.ROOM_EXPIRED, 'Room has expired');
       }
 
       // Check password if required
       if (room.access === 'password' && !room.ownerId?.equals(user?._id)) {
         if (!query.password) {
-          throw new AppError(ERROR_CODES.ROOM_PASSWORD_REQUIRED, 'Password required', 401);
+          set.status = 401;
+          return errorResponse(ERROR_CODES.ROOM_PASSWORD_REQUIRED, 'Password required');
         }
         const valid = await verifyPassword(room.passwordHash!, query.password);
         if (!valid) {
-          throw new AppError(ERROR_CODES.ROOM_PASSWORD_INVALID, 'Invalid password', 401);
+          set.status = 401;
+          return errorResponse(ERROR_CODES.ROOM_PASSWORD_INVALID, 'Invalid password');
         }
       }
 
       // Check private access
       if (room.access === 'private' && !room.ownerId?.equals(user?._id)) {
-        throw new AppError(ERROR_CODES.FORBIDDEN, 'Room is private', 403);
+        set.status = 403;
+        return errorResponse(ERROR_CODES.FORBIDDEN, 'Room is private');
       }
 
       // Update last activity
@@ -187,19 +196,21 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   // Update room
   .patch(
     '/:code',
-    async ({ params, body, user }) => {
+    async ({ params, body, user, set }) => {
       const room = await RoomModel.findOne({
         code: params.code.toUpperCase(),
         deletedAt: null,
       });
 
       if (!room) {
-        throw new AppError(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found', 404);
+        set.status = 404;
+        return errorResponse(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found');
       }
 
       // Check ownership
       if (room.ownerId && !room.ownerId.equals(user?._id)) {
-        throw AppError.forbidden('Only room owner can update');
+        set.status = 403;
+        return errorResponse(ERROR_CODES.FORBIDDEN, 'Only room owner can update');
       }
 
       // Update fields
@@ -215,7 +226,7 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
       // Update password
       if (body.password !== undefined) {
         if (body.password) {
-          room.passwordHash = await hash(body.password);
+          room.passwordHash = await hashPassword(body.password);
           room.encryptionSalt = CryptoUtils.uint8ArrayToBase64(CryptoUtils.generateSalt());
           room.access = 'password';
         } else {
@@ -230,14 +241,14 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
       room.lastActivityAt = new Date();
       await room.save();
 
-      await AuditLogModel.log({
+      AuditLogModel.log({
         roomId: room._id,
         userId: user?._id,
         action: 'room.updated',
         category: 'room',
         actor: { type: 'user', userId: user?._id },
         details: { changes: body },
-      });
+      }).catch(() => {});
 
       return {
         success: true,
@@ -259,19 +270,21 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   )
 
   // Delete room
-  .delete('/:code', async ({ params, user }) => {
+  .delete('/:code', async ({ params, user, set }) => {
     const room = await RoomModel.findOne({
       code: params.code.toUpperCase(),
       deletedAt: null,
     });
 
     if (!room) {
-      throw new AppError(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found', 404);
+      set.status = 404;
+      return errorResponse(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found');
     }
 
     // Check ownership
     if (room.ownerId && !room.ownerId.equals(user?._id)) {
-      throw AppError.forbidden('Only room owner can delete');
+      set.status = 403;
+      return errorResponse(ERROR_CODES.FORBIDDEN, 'Only room owner can delete');
     }
 
     // Soft delete
@@ -284,21 +297,22 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
       { deletedAt: new Date() }
     );
 
-    await AuditLogModel.log({
+    AuditLogModel.log({
       roomId: room._id,
       userId: user?._id,
       action: 'room.deleted',
       category: 'room',
       actor: { type: 'user', userId: user?._id },
-    });
+    }).catch(() => {});
 
     return { success: true };
   })
 
   // List user's rooms (requires auth)
-  .get('/my/rooms', async ({ user }) => {
+  .get('/my/rooms', async ({ user, set }) => {
     if (!user) {
-      throw AppError.unauthorized();
+      set.status = 401;
+      return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
     }
 
     const rooms = await RoomModel.find({
@@ -317,14 +331,15 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   // Search items in room
   .get(
     '/:code/search',
-    async ({ params, query }) => {
+    async ({ params, query, set }) => {
       const room = await RoomModel.findOne({
         code: params.code.toUpperCase(),
         deletedAt: null,
       });
 
       if (!room) {
-        throw new AppError(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found', 404);
+        set.status = 404;
+        return errorResponse(ERROR_CODES.ROOM_NOT_FOUND, 'Room not found');
       }
 
       const items = await ItemModel.find({

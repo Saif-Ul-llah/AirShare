@@ -1,18 +1,35 @@
-FROM oven/bun:1 AS base
+FROM node:18-alpine AS builder
+
 WORKDIR /app
 
-# Copy workspace files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Install Bun
+RUN npm install -g bun
+
+# Install pnpm globally
+RUN npm install -g pnpm@latest
+
+# Copy package files first
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+
+# Copy packages and apps
 COPY packages ./packages
-COPY apps/server ./apps/server
+COPY apps ./apps
 
-# Install dependencies
-RUN bun install
+# Install dependencies using pnpm
+RUN pnpm install --frozen-lockfile
 
-# Set working directory to server
-WORKDIR /app/apps/server
+# Build the server using pnpm
+RUN pnpm --filter @airshare/server build
 
-ENV NODE_ENV=production
+# Runtime stage
+FROM oven/bun:latest
+
+WORKDIR /app
+
+# Only copy what we need for runtime
+COPY --from=builder /app/apps/server/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+
 EXPOSE 4000
 
-CMD ["bun", "run", "src/index.ts"]
+CMD ["bun", "dist/index.js"]

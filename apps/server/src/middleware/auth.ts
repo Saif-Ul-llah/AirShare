@@ -33,23 +33,17 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' })
         return { user: null, sessionId: null };
       }
 
-      // Check session in Redis (with fallback)
-      let session;
+      // Check session in Redis (non-blocking - trust JWT if Redis fails)
       try {
-        session = await redisHelpers.getSession(payload.sessionId);
+        const session = await redisHelpers.getSession(payload.sessionId);
+        if (!session) {
+          console.warn('[Auth] Session not found in Redis for:', payload.sessionId, '- trusting JWT');
+        }
       } catch (redisError) {
-        console.error('[Auth] Redis session lookup failed:', redisError);
-        // Fallback: if Redis fails, still allow the request if JWT is valid
-        // This ensures auth doesn't break when Redis has issues
-        session = { sessionId: payload.sessionId };
+        console.error('[Auth] Redis session lookup failed:', redisError, '- trusting JWT');
       }
 
-      if (!session) {
-        console.warn('[Auth] Session not found for:', payload.sessionId);
-        return { user: null, sessionId: null };
-      }
-
-      // Get user
+      // Get user (JWT is already verified, so we trust the userId)
       const user = await UserModel.findById(payload.userId);
       if (!user) {
         console.warn('[Auth] User not found:', payload.userId);

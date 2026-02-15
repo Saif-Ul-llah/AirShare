@@ -148,37 +148,49 @@ export class OfflineSyncService {
     );
 
     // Init upload
-    const { uploadId } = await uploadApi.initUpload({
+    const initResponse = await uploadApi.init({
       roomCode: upload.roomCode,
       filename: file.name,
       size: file.size,
       mimeType: file.type,
     });
 
-    // Upload in chunks
-    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    if (!initResponse.success || !initResponse.data) {
+      throw new Error('Failed to initialize upload');
+    }
+
+    const { uploadId, totalChunks, chunkSize, presignedUrls } = initResponse.data;
+    const CHUNK_SIZE = chunkSize || 5 * 1024 * 1024;
 
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
 
-      await uploadApi.uploadChunk({
-        uploadId,
-        chunkIndex: i,
+      const presignedUrl = presignedUrls?.[i];
+      if (!presignedUrl) {
+        throw new Error(`Missing presigned URL for chunk ${i}`);
+      }
+
+      // Upload directly to S3/R2
+      const uploadResponse = await uploadApi.uploadToPresignedUrl(
+        presignedUrl,
         chunk,
-      });
+        file.type || 'application/octet-stream',
+      );
+
+      // Notify backend
+      await uploadApi.markChunkUploaded(uploadId, i, uploadResponse.etag);
     }
 
     // Complete upload
-    await uploadApi.completeUpload({ uploadId });
+    const checksum = file.size.toString(16);
+    await uploadApi.complete(uploadId, checksum);
   }
 
   private async createItem(upload: PendingUpload): Promise<void> {
-    await itemApi.createItem({
-      roomCode: upload.roomCode,
-      type: upload.type,
+    await itemApi.create(upload.roomCode, {
+      type: upload.type as 'text' | 'link' | 'code' | 'note' | 'folder',
       content: upload.data,
     });
   }

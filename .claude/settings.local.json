@@ -6,7 +6,8 @@
       "Bash(vercel:*)",
       "Bash(curl:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(pnpm --filter @airshare/web typecheck:*)"
     ]
   }
 }

@@ -119,14 +119,27 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
     }
   )
 
-  // Get room by code
+  // Get room by code or name
   .get(
     '/:code',
     async ({ params, query, user, set }) => {
-      const room = await RoomModel.findOne({
-        code: params.code.toUpperCase(),
-        deletedAt: null,
-      });
+      const input = params.code.trim();
+      const isRoomCode = /^[A-Z0-9]{8}$/i.test(input);
+
+      let room;
+      if (isRoomCode) {
+        // Lookup by exact room code
+        room = await RoomModel.findOne({
+          code: input.toUpperCase(),
+          deletedAt: null,
+        });
+      } else {
+        // Lookup by room name (case-insensitive, exact match)
+        room = await RoomModel.findOne({
+          name: { $regex: new RegExp(`^${input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          deletedAt: null,
+        });
+      }
 
       if (!room) {
         set.status = 404;
@@ -185,7 +198,7 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
     },
     {
       params: t.Object({
-        code: t.String({ minLength: 8, maxLength: 8 }),
+        code: t.String({ minLength: 1, maxLength: 100 }),
       }),
       query: t.Object({
         password: t.Optional(t.String()),

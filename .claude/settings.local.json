@@ -7,7 +7,8 @@
       "Bash(curl:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(pnpm --filter @airshare/web typecheck:*)"
+      "Bash(pnpm --filter @airshare/web typecheck:*)",
+      "WebFetch(domain:air-share-one.vercel.app)"
     ]
   }
 }

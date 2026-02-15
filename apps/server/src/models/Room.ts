@@ -70,6 +70,7 @@ const roomSchema = new Schema<RoomDocument>(
 
 // Indexes
 roomSchema.index({ code: 1 }, { unique: true });
+roomSchema.index({ name: 1, deletedAt: 1 });
 roomSchema.index({ mode: 1 });
 roomSchema.index({ ownerId: 1 });
 roomSchema.index({ createdAt: -1 });

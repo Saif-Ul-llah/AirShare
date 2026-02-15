@@ -67,8 +67,8 @@ export const roomApi = {
   create: (data: CreateRoomData) =>
     api.post<RoomResponse>('/api/rooms', data),
 
-  get: (code: string, password?: string) =>
-    api.get<RoomResponse>(`/api/rooms/${code}`, { params: { password } }),
+  get: (codeOrName: string, password?: string) =>
+    api.get<RoomResponse>(`/api/rooms/${encodeURIComponent(codeOrName)}`, { params: { password } }),
 
   update: (code: string, data: Partial<CreateRoomData>) =>
     api.patch<RoomResponse>(`/api/rooms/${code}`, data),

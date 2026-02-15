@@ -61,10 +61,11 @@ export default function RoomPage() {
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  // Join room on mount
+  // Join room on mount - supports both room code and room name in URL
   useEffect(() => {
     if (code && !currentRoom) {
-      joinRoom(code).then((success) => {
+      const decodedCode = decodeURIComponent(code);
+      joinRoom(decodedCode).then((success) => {
         if (!success) {
           // Check if password is required
           if (error?.toLowerCase().includes('password')) {
@@ -79,6 +80,13 @@ export default function RoomPage() {
       wsLeaveRoom();
     };
   }, [code]);
+
+  // Redirect to canonical URL using room code if joined by name
+  useEffect(() => {
+    if (currentRoom && code !== currentRoom.code) {
+      router.replace(`/room/${currentRoom.code}`, { scroll: false });
+    }
+  }, [currentRoom, code, router]);
 
   // Join WebSocket room when connected
   useEffect(() => {

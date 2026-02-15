@@ -3,7 +3,7 @@ import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { connectDB } from './config/database';
 import { connectRedis } from './config/redis';
-import { env } from './config/env';
+import { env, getAllowedOrigins } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { rateLimiter } from './middleware/rateLimit';
 import { authRoutes } from './routes/auth';
@@ -17,11 +17,12 @@ async function main() {
   // Connect to databases
   await connectDB();
   await connectRedis();
+  const allowedOrigins = getAllowedOrigins();
 
   // Create Elysia app
   const app = new Elysia()
     .use(cors({
-      origin: env.CORS_ORIGIN,
+      origin: allowedOrigins,
       credentials: true,
     }))
     .use(swagger({
@@ -58,6 +59,7 @@ async function main() {
 
   console.log(`[AirShare] Server running at http://localhost:${env.PORT}`);
   console.log(`[AirShare] Swagger docs at http://localhost:${env.PORT}/swagger`);
+  console.log(`[AirShare] Allowed CORS origins: ${allowedOrigins.join(', ')}`);
 }
 
 main().catch((error) => {

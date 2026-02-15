@@ -1,6 +1,7 @@
 import { Server as HTTPServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import { redis, redisHelpers } from '../config/redis';
+import { getAllowedOrigins } from '../config/env';
 import { RoomModel, AuditLogModel } from '../models';
 import { WS_EVENTS } from '@airshare/shared';
 
@@ -21,9 +22,11 @@ interface SignalData {
 }
 
 export function setupWebSocket(httpServer: HTTPServer): Server {
+  const allowedOrigins = getAllowedOrigins();
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin: allowedOrigins,
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -172,7 +175,7 @@ export function setupWebSocket(httpServer: HTTPServer): Server {
     });
   });
 
-  console.log('[WS] WebSocket server initialized');
+  console.log(`[WS] WebSocket server initialized (origins: ${allowedOrigins.join(', ')})`);
   return io;
 }
 

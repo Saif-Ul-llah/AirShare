@@ -12,47 +12,68 @@ interface JWTPayload {
   type: 'access' | 'refresh';
 }
 
+interface AuthContext {
+  user: Awaited<ReturnType<typeof UserModel.findById>> | null;
+  sessionId: string | null;
+  authDebug: string;
+}
+
+export async function resolveAuthContext(
+  jwtVerifier: { verify: (token: string) => Promise<JWTPayload | false> },
+  authorization?: string
+): Promise<AuthContext> {
+  if (!authorization || !authorization.startsWith('Bearer ')) {
+    return { user: null, sessionId: null, authDebug: 'no-token' };
+  }
+
+  const token = authorization.slice(7);
+
+  try {
+    const payload = await jwtVerifier.verify(token);
+
+    if (!payload) {
+      return { user: null, sessionId: null, authDebug: 'jwt-verify-false' };
+    }
+
+    if (payload.type !== 'access') {
+      return { user: null, sessionId: null, authDebug: `wrong-type:${payload.type}` };
+    }
+
+    const user = await UserModel.findById(payload.userId);
+    if (!user) {
+      return { user: null, sessionId: null, authDebug: `user-not-found:${payload.userId}` };
+    }
+
+    if (user.isSuspended && user.isSuspended()) {
+      return { user: null, sessionId: null, authDebug: 'suspended' };
+    }
+
+    return { user, sessionId: payload.sessionId, authDebug: 'ok' };
+  } catch (error) {
+    return {
+      user: null,
+      sessionId: null,
+      authDebug: `error:${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
 export const authPlugin = new Elysia({ name: 'auth-plugin' })
   .use(jwt({
     name: 'jwt',
     secret: env.JWT_SECRET,
   }))
-  .derive(async ({ jwt, headers }) => {
-    const authorization = headers.authorization;
-
-    if (!authorization || !authorization.startsWith('Bearer ')) {
-      return { user: null, sessionId: null, authDebug: 'no-token' };
-    }
-
-    const token = authorization.slice(7);
-
-    try {
-      const payload = await jwt.verify(token) as JWTPayload | false;
-
-      if (!payload) {
-        return { user: null, sessionId: null, authDebug: 'jwt-verify-false' };
-      }
-
-      if (payload.type !== 'access') {
-        return { user: null, sessionId: null, authDebug: `wrong-type:${payload.type}` };
-      }
-
-      // Skip Redis session check - trust JWT signature
-      // Get user
-      const user = await UserModel.findById(payload.userId);
-      if (!user) {
-        return { user: null, sessionId: null, authDebug: `user-not-found:${payload.userId}` };
-      }
-
-      // Check if suspended
-      if (user.isSuspended && user.isSuspended()) {
-        return { user: null, sessionId: null, authDebug: 'suspended' };
-      }
-
-      return { user, sessionId: payload.sessionId, authDebug: 'ok' };
-    } catch (error) {
-      return { user: null, sessionId: null, authDebug: `error:${error instanceof Error ? error.message : String(error)}` };
-    }
+  .derive(() => ({
+    user: null as AuthContext['user'],
+    sessionId: null as string | null,
+    authDebug: 'not-checked',
+  }))
+  .onBeforeHandle(async (context) => {
+    const authorization = typeof context.headers.authorization === 'string'
+      ? context.headers.authorization
+      : undefined;
+    const auth = await resolveAuthContext(context.jwt, authorization);
+    Object.assign(context as Record<string, unknown>, auth);
   });
 
 // Middleware that requires authentication

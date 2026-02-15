@@ -8,6 +8,14 @@
   ],
   "routes": [
     {
+      "src": "/room/([^/]+)",
+      "dest": "/apps/web/room/[code]?code=$1"
+    },
+    {
+      "src": "/s/([^/]+)",
+      "dest": "/apps/web/s/[shareUrl]?shareUrl=$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/apps/web/$1"
     }

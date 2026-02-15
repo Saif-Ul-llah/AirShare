@@ -301,7 +301,7 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
       if (body.access) {
         if (body.access.password) {
           item.access.type = 'password';
-          item.access.passwordHash = await hash(body.access.password);
+          item.access.passwordHash = await hashPassword(body.access.password);
         } else if (body.access.type) {
           item.access.type = body.access.type;
         }
@@ -489,7 +489,7 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
       if (!query.password) {
         throw new AppError(ERROR_CODES.ROOM_PASSWORD_REQUIRED, 'Password required', 401);
       }
-      const valid = await verify(item.access.passwordHash!, query.password);
+      const valid = await verifyPassword(item.access.passwordHash!, query.password);
       if (!valid) {
         throw new AppError(ERROR_CODES.ROOM_PASSWORD_INVALID, 'Invalid password', 401);
       }

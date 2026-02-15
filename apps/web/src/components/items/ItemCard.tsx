@@ -21,6 +21,7 @@ import {
 import type { Item } from '@airshare/shared';
 import { useItemStore } from '@/lib/stores';
 import { useItemActions } from '@/hooks';
+import { itemApi } from '@/lib/api/endpoints';
 import { cn } from '@/lib/utils';
 
 interface ItemCardProps {
@@ -106,6 +107,10 @@ export function ItemCard({ item, viewMode }: ItemCardProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownload = () => {
+    window.open(itemApi.download(item.id), '_blank');
+  };
+
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this item?')) {
       await deleteItem(item.id);
@@ -147,6 +152,15 @@ export function ItemCard({ item, viewMode }: ItemCardProps) {
           >
             <Eye className="h-4 w-4" />
           </button>
+          {(item.content.type === 'file' || item.content.type === 'image') && (
+            <button
+              onClick={handleDownload}
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              title="Download"
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={copyShareUrl}
             className="p-2 rounded-lg hover:bg-muted transition-colors"
@@ -261,7 +275,7 @@ export function ItemCard({ item, viewMode }: ItemCardProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // TODO: Download
+                    handleDownload();
                     setShowMenu(false);
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2 hover:bg-muted transition-colors"

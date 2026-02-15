@@ -123,19 +123,20 @@ export function AddCodeDialog({ open, onOpenChange, roomCode }: AddCodeDialogPro
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Paste your code here..."
                 className={cn(
-                  'w-full h-64 px-4 py-3 rounded-xl border bg-muted/50 resize-none',
-                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                  'font-mono text-sm'
+                  'w-full h-64 px-4 py-3 rounded-xl border bg-muted/30 resize-none',
+                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:bg-background',
+                  'font-mono text-sm leading-relaxed transition-colors',
+                  'placeholder:text-muted-foreground/60'
                 )}
                 autoFocus
               />
-              <p className="mt-1 text-xs text-muted-foreground text-right">
-                {content.split('\n').length} lines
+              <p className="mt-1.5 text-xs text-muted-foreground text-right">
+                {content.split('\n').length} {content.split('\n').length === 1 ? 'line' : 'lines'}
               </p>
             </div>
 
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-slide-up">
                 {error}
               </div>
             )}

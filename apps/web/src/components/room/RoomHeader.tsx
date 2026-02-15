@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Share2,
@@ -15,7 +15,8 @@ import {
   Lock,
   Trash2,
   ExternalLink,
-  QrCode
+  QrCode,
+  X
 } from 'lucide-react';
 import type { Room } from '@airshare/shared';
 import { useRoomStore, useAuthStore } from '@/lib/stores';
@@ -66,6 +67,7 @@ export function RoomHeader({ room, presenceCount, isConnected }: RoomHeaderProps
   };
 
   return (
+    <>
     <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-40">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         {/* Left: Logo & Room Info */}
@@ -243,15 +245,16 @@ export function RoomHeader({ room, presenceCount, isConnected }: RoomHeaderProps
         </div>
       </div>
 
-      {/* Share Dialog */}
-      {showShareDialog && (
-        <ShareDialog
-          room={room}
-          shareUrl={shareUrl}
-          onClose={() => setShowShareDialog(false)}
-        />
-      )}
     </header>
+    {/* Share Dialog - rendered outside header to avoid sticky stacking context */}
+    {showShareDialog && (
+      <ShareDialog
+        room={room}
+        shareUrl={shareUrl}
+        onClose={() => setShowShareDialog(false)}
+      />
+    )}
+    </>
   );
 }
 
@@ -266,6 +269,25 @@ function ShareDialog({
 }) {
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
 
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Lock body scroll
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, []);
+
   const copyToClipboard = async (text: string, type: 'code' | 'link') => {
     await navigator.clipboard.writeText(text);
     setCopied(type);
@@ -275,81 +297,117 @@ function ShareDialog({
   return (
     <div className="fixed inset-0 z-50">
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
         onClick={onClose}
       />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      <div className="fixed inset-0 flex items-center justify-center p-4 overflow-y-auto">
         <div
-          className="bg-background rounded-2xl shadow-lg border max-w-md w-full p-6"
+          className="animate-scale-in bg-background rounded-2xl shadow-2xl border max-w-md w-full overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          <h2 className="text-xl font-semibold mb-2">Share Room</h2>
-          <p className="text-muted-foreground text-sm mb-6">
-            Share this room with others using the code or link below
-          </p>
-
-          {/* Room Code */}
-          <div className="mb-4">
-            <label className="text-sm font-medium mb-2 block">Room Code</label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-muted rounded-lg px-4 py-3 font-mono text-2xl tracking-[0.3em] text-center font-bold">
-                {room.code}
+          {/* Header */}
+          <div className="p-6 pb-4 flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                <Share2 className="h-5 w-5" />
               </div>
-              <Button
-                variant="outline"
-                size="icon"
+              <div>
+                <h2 className="text-xl font-semibold">Share Room</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Invite others to join this room
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="px-6 pb-6 space-y-4">
+            {/* Room Code */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Room Code</label>
+              <button
                 onClick={() => copyToClipboard(room.code, 'code')}
-              >
-                {copied === 'code' ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
+                className={cn(
+                  'w-full flex items-center justify-between bg-muted/50 border rounded-xl px-4 py-3 transition-all hover:bg-muted/80 group',
+                  copied === 'code' && 'border-green-500/50 bg-green-500/5'
                 )}
-              </Button>
+              >
+                <span className="font-mono text-2xl tracking-[0.3em] font-bold">
+                  {room.code}
+                </span>
+                <span className={cn(
+                  'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors',
+                  copied === 'code'
+                    ? 'text-green-600 bg-green-500/10'
+                    : 'text-muted-foreground group-hover:text-foreground group-hover:bg-muted'
+                )}>
+                  {copied === 'code' ? (
+                    <><Check className="h-3.5 w-3.5" /> Copied</>
+                  ) : (
+                    <><Copy className="h-3.5 w-3.5" /> Copy</>
+                  )}
+                </span>
+              </button>
             </div>
-          </div>
 
-          {/* Share Link */}
-          <div className="mb-6">
-            <label className="text-sm font-medium mb-2 block">Share Link</label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-muted rounded-lg px-4 py-2 text-sm truncate">
-                {shareUrl}
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
+            {/* Share Link */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Share Link</label>
+              <button
                 onClick={() => copyToClipboard(shareUrl, 'link')}
-              >
-                {copied === 'link' ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
+                className={cn(
+                  'w-full flex items-center justify-between bg-muted/50 border rounded-xl px-4 py-2.5 transition-all hover:bg-muted/80 group',
+                  copied === 'link' && 'border-green-500/50 bg-green-500/5'
                 )}
-              </Button>
+              >
+                <span className="text-sm truncate mr-3 text-left">
+                  {shareUrl}
+                </span>
+                <span className={cn(
+                  'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors shrink-0',
+                  copied === 'link'
+                    ? 'text-green-600 bg-green-500/10'
+                    : 'text-muted-foreground group-hover:text-foreground group-hover:bg-muted'
+                )}>
+                  {copied === 'link' ? (
+                    <><Check className="h-3.5 w-3.5" /> Copied</>
+                  ) : (
+                    <><Copy className="h-3.5 w-3.5" /> Copy</>
+                  )}
+                </span>
+              </button>
             </div>
+
+            {/* QR Code Placeholder */}
+            <div className="bg-muted/30 border border-dashed rounded-xl p-6 flex items-center justify-center">
+              <div className="text-center">
+                <QrCode className="h-20 w-20 text-muted-foreground/50 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">
+                  QR Code coming soon
+                </p>
+              </div>
+            </div>
+
+            {room.access === 'password' && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 text-sm text-amber-600 dark:text-amber-400">
+                <Lock className="h-4 w-4 shrink-0" />
+                <span>This room requires a password to join</span>
+              </div>
+            )}
           </div>
 
-          {/* QR Code Placeholder */}
-          <div className="bg-muted rounded-xl p-8 flex items-center justify-center mb-6">
-            <div className="text-center">
-              <QrCode className="h-24 w-24 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                QR Code coming soon
-              </p>
-            </div>
+          {/* Footer */}
+          <div className="px-6 pb-6">
+            <Button onClick={onClose} variant="outline" className="w-full">
+              Done
+            </Button>
           </div>
-
-          {room.access === 'password' && (
-            <p className="text-sm text-muted-foreground text-center mb-4">
-              <Lock className="h-3.5 w-3.5 inline mr-1" />
-              This room requires a password to join
-            </p>
-          )}
-
-          <Button onClick={onClose} className="w-full">
-            Done
-          </Button>
         </div>
       </div>
     </div>

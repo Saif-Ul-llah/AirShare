@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { StickyNote } from 'lucide-react';
+import { StickyNote, Code } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -98,23 +98,25 @@ export function AddNoteDialog({ open, onOpenChange, roomCode }: AddNoteDialogPro
 
 ```code block```"
                 className={cn(
-                  'w-full h-64 px-4 py-3 rounded-xl border bg-background resize-none',
-                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                  'font-mono text-sm'
+                  'w-full h-64 px-4 py-3 rounded-xl border bg-muted/30 resize-none',
+                  'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:bg-background',
+                  'font-mono text-sm leading-relaxed transition-colors',
+                  'placeholder:text-muted-foreground/60'
                 )}
               />
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">
-                  Supports Markdown formatting
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Code className="h-3 w-3" />
+                  Markdown supported
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {content.length} characters
+                  {content.length.toLocaleString()} characters
                 </p>
               </div>
             </div>
 
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-slide-up">
                 {error}
               </div>
             )}

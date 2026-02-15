@@ -26,6 +26,7 @@ import { AddLinkDialog } from '@/components/items/AddLinkDialog';
 import { AddNoteDialog } from '@/components/items/AddNoteDialog';
 import { AddContentMenu } from '@/components/room/AddContentMenu';
 import { PresenceSidebar } from '@/components/room/PresenceSidebar';
+import { ItemPreviewModal } from '@/components/items/ItemPreviewModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
@@ -350,6 +351,7 @@ export default function RoomPage() {
         onOpenChange={setShowNoteDialog}
         roomCode={code}
       />
+      <ItemPreviewModal />
     </div>
   );
 }

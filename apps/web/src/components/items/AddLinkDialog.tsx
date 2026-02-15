@@ -123,9 +123,9 @@ export function AddLinkDialog({ open, onOpenChange, roomCode }: AddLinkDialogPro
 
             {/* Preview */}
             {isValidUrl(url) && (
-              <div className="p-4 border rounded-xl bg-muted/30">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                  <ExternalLink className="h-4 w-4" />
+              <div className="p-4 border rounded-xl bg-muted/20 animate-slide-up">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2.5">
+                  <ExternalLink className="h-3.5 w-3.5" />
                   Preview
                 </div>
                 <div className="font-medium">{title || url}</div>
@@ -134,12 +134,12 @@ export function AddLinkDialog({ open, onOpenChange, roomCode }: AddLinkDialogPro
                     {description}
                   </div>
                 )}
-                <div className="text-xs text-primary mt-2">{url}</div>
+                <div className="text-xs text-primary mt-2.5 truncate">{url}</div>
               </div>
             )}
 
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-slide-up">
                 {error}
               </div>
             )}

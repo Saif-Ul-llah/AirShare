@@ -138,7 +138,7 @@ export function JoinRoomDialog({ open, onOpenChange }: JoinRoomDialogProps) {
 
             {/* Error Message */}
             {error && (
-              <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-slide-up">
                 {error}
               </div>
             )}

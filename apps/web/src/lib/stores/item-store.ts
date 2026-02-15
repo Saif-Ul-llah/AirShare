@@ -175,7 +175,7 @@ export const useItemStore = create<ItemState>((set, get) => ({
     const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
 
     try {
-      // Initialize upload
+      // Initialize upload - server returns presigned S3/R2 URLs
       const initResponse = await uploadApi.init({
         roomCode,
         filename: file.name,
@@ -184,23 +184,37 @@ export const useItemStore = create<ItemState>((set, get) => ({
         encrypted: false,
       });
 
-      if (!initResponse.success || !initResponse.data?.data) {
+      if (!initResponse.success || !initResponse.data) {
         throw new Error('Failed to initialize upload');
       }
 
-      const { uploadId, totalChunks, chunkSize } = initResponse.data.data;
+      const { uploadId, totalChunks, chunkSize, presignedUrls } = initResponse.data;
       const actualChunkSize = chunkSize || CHUNK_SIZE;
 
-      // Upload chunks
+      // Upload each chunk to presigned S3/R2 URL, then notify backend
       for (let i = 0; i < totalChunks; i++) {
         const start = i * actualChunkSize;
         const end = Math.min(start + actualChunkSize, file.size);
         const chunk = file.slice(start, end);
 
-        await uploadApi.uploadChunk(uploadId, i, chunk, (chunkProgress) => {
-          const overallProgress = ((i + chunkProgress / 100) / totalChunks) * 100;
-          onProgress?.(overallProgress);
-        });
+        // Upload directly to S3/R2 via presigned URL
+        const presignedUrl = presignedUrls?.[i];
+        if (!presignedUrl) {
+          throw new Error(`Missing presigned URL for chunk ${i}`);
+        }
+
+        const uploadResponse = await uploadApi.uploadToPresignedUrl(
+          presignedUrl,
+          chunk,
+          file.type || 'application/octet-stream',
+          (chunkProgress) => {
+            const overallProgress = ((i + chunkProgress / 100) / totalChunks) * 100;
+            onProgress?.(overallProgress);
+          }
+        );
+
+        // Notify backend that chunk was uploaded
+        await uploadApi.markChunkUploaded(uploadId, i, uploadResponse.etag);
       }
 
       // Calculate checksum (simplified - just use size for now)
@@ -209,12 +223,12 @@ export const useItemStore = create<ItemState>((set, get) => ({
       // Complete upload
       const completeResponse = await uploadApi.complete(uploadId, checksum);
 
-      if (!completeResponse.success || !completeResponse.data?.data) {
+      if (!completeResponse.success || !completeResponse.data) {
         throw new Error('Failed to complete upload');
       }
 
       onProgress?.(100);
-      return completeResponse.data.data.item;
+      return completeResponse.data.item;
     } catch (error) {
       console.error('Upload failed:', error);
       throw error;

@@ -154,23 +154,53 @@ export interface InitUploadData {
 
 export const uploadApi = {
   init: (data: InitUploadData) =>
-    api.post<{ data: UploadInitResponse }>('/api/upload/init', data),
+    api.post<UploadInitResponse>('/api/upload/init', data),
 
-  uploadChunk: (
-    uploadId: string,
-    chunkIndex: number,
+  // Upload chunk directly to S3/R2 via presigned URL
+  uploadToPresignedUrl: (
+    presignedUrl: string,
     chunk: Blob,
+    contentType: string,
     onProgress?: (progress: number) => void
-  ) => {
-    const formData = new FormData();
-    formData.append('uploadId', uploadId);
-    formData.append('chunkIndex', String(chunkIndex));
-    formData.append('chunk', chunk);
-    return api.upload<{ success: boolean }>('/api/upload/chunk', formData, onProgress);
+  ): Promise<{ etag?: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          onProgress((event.loaded / event.total) * 100);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const etag = xhr.getResponseHeader('ETag') || undefined;
+          resolve({ etag });
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload to storage failed'));
+      });
+
+      xhr.open('PUT', presignedUrl);
+      xhr.setRequestHeader('Content-Type', contentType);
+      xhr.send(chunk);
+    });
   },
 
+  // Notify backend that a chunk was uploaded to S3
+  markChunkUploaded: (uploadId: string, chunkIndex: number, etag?: string) =>
+    api.post<{ success: boolean }>('/api/upload/chunk', {
+      uploadId,
+      chunkIndex,
+      etag,
+    }),
+
   complete: (uploadId: string, checksum: string) =>
-    api.post<{ data: UploadCompleteResponse }>('/api/upload/complete', {
+    api.post<UploadCompleteResponse>('/api/upload/complete', {
       uploadId,
       checksum,
     }),

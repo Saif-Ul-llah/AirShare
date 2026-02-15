@@ -91,25 +91,25 @@ export function FileUploader({ roomCode, onClose }: FileUploaderProps) {
   }, []);
 
   const uploadAllFiles = async () => {
-    for (const uploadFile of files.filter((f) => f.status === 'pending')) {
+    for (const pendingFile of files.filter((f) => f.status === 'pending')) {
       setFiles((prev) =>
         prev.map((f) =>
-          f.id === uploadFile.id ? { ...f, status: 'uploading' } : f
+          f.id === pendingFile.id ? { ...f, status: 'uploading' } : f
         )
       );
 
       try {
-        await uploadFile(uploadFile.file, roomCode, (progress) => {
+        await uploadFile(pendingFile.file, roomCode, (progress: number) => {
           setFiles((prev) =>
             prev.map((f) =>
-              f.id === uploadFile.id ? { ...f, progress } : f
+              f.id === pendingFile.id ? { ...f, progress } : f
             )
           );
         });
 
         setFiles((prev) =>
           prev.map((f) =>
-            f.id === uploadFile.id
+            f.id === pendingFile.id
               ? { ...f, status: 'completed', progress: 100 }
               : f
           )
@@ -117,7 +117,7 @@ export function FileUploader({ roomCode, onClose }: FileUploaderProps) {
       } catch (error) {
         setFiles((prev) =>
           prev.map((f) =>
-            f.id === uploadFile.id
+            f.id === pendingFile.id
               ? {
                   ...f,
                   status: 'error',

@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { RoomModel, ItemModel, AuditLogModel } from '../models';
-import { authPlugin } from '../middleware/auth';
+import { jwtPlugin, getAuth } from '../middleware/auth';
 import { roomCreateRateLimiter } from '../middleware/rateLimit';
 import { redisHelpers } from '../config/redis';
 import { ERROR_CODES, ROOM_CODE_LENGTH, ROOM_CODE_CHARSET, DEFAULT_ROOM_SETTINGS, ROOM_EXPIRY } from '@airshare/shared';
@@ -21,12 +21,14 @@ function errorResponse(code: string, message: string) {
 }
 
 export const roomRoutes = new Elysia({ prefix: '/rooms' })
-  .use(authPlugin)
+  .use(jwtPlugin)
 
   // Create room
   .post(
     '/',
-    async ({ body, user, set }) => {
+    async (ctx: any) => {
+      const { body, set } = ctx;
+      const { user } = await getAuth(ctx);
       // Generate unique code
       let code: string = '';
       let attempts = 0;
@@ -122,7 +124,9 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   // Get room by code or name
   .get(
     '/:code',
-    async ({ params, query, user, set }) => {
+    async (ctx: any) => {
+      const { params, query, set } = ctx;
+      const { user } = await getAuth(ctx);
       const input = params.code.trim();
       const isRoomCode = /^[A-Z0-9]{8}$/i.test(input);
 
@@ -209,7 +213,9 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   // Update room
   .patch(
     '/:code',
-    async ({ params, body, user, set }) => {
+    async (ctx: any) => {
+      const { params, body, set } = ctx;
+      const { user } = await getAuth(ctx);
       const room = await RoomModel.findOne({
         code: params.code.toUpperCase(),
         deletedAt: null,
@@ -283,7 +289,9 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   )
 
   // Delete room
-  .delete('/:code', async ({ params, user, set }) => {
+  .delete('/:code', async (ctx: any) => {
+    const { params, set } = ctx;
+    const { user } = await getAuth(ctx);
     const room = await RoomModel.findOne({
       code: params.code.toUpperCase(),
       deletedAt: null,
@@ -322,7 +330,9 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
   })
 
   // List user's rooms (requires auth)
-  .get('/my/rooms', async ({ user, set }) => {
+  .get('/my/rooms', async (ctx: any) => {
+    const { set } = ctx;
+    const { user } = await getAuth(ctx);
     if (!user) {
       set.status = 401;
       return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');

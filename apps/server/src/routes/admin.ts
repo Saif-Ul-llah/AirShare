@@ -1,16 +1,17 @@
 import { Elysia, t } from 'elysia';
 import { RoomModel, ItemModel, UserModel, AuditLogModel } from '../models';
-import { requireAdmin } from '../middleware/auth';
+import { jwtPlugin, requireAdmin } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { s3Helpers } from '../config/s3';
 import { redisHelpers, redis } from '../config/redis';
 import { ERROR_CODES } from '@airshare/shared';
 
 export const adminRoutes = new Elysia({ prefix: '/admin' })
-  .use(requireAdmin)
+  .use(jwtPlugin)
 
   // Dashboard stats
-  .get('/stats', async () => {
+  .get('/stats', async (ctx: any) => {
+    await requireAdmin(ctx);
     const now = new Date();
     const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -53,7 +54,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   // List rooms with filters
   .get(
     '/rooms',
-    async ({ query }) => {
+    async (ctx: any) => {
+      await requireAdmin(ctx);
+      const { query } = ctx;
       const filter: Record<string, unknown> = {};
 
       if (query.mode) filter.mode = query.mode;
@@ -117,7 +120,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   // Disable room
   .post(
     '/rooms/:code/disable',
-    async ({ params, body, user }) => {
+    async (ctx: any) => {
+      const { user } = await requireAdmin(ctx);
+      const { params, body } = ctx;
       const room = await RoomModel.findOne({ code: params.code.toUpperCase() });
 
       if (!room) {
@@ -153,7 +158,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   // Delete room (hard delete with files)
   .delete(
     '/rooms/:code',
-    async ({ params, query, user }) => {
+    async (ctx: any) => {
+      const { user } = await requireAdmin(ctx);
+      const { params, query } = ctx;
       const room = await RoomModel.findOne({ code: params.code.toUpperCase() });
 
       if (!room) {
@@ -208,7 +215,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   // List users
   .get(
     '/users',
-    async ({ query }) => {
+    async (ctx: any) => {
+      await requireAdmin(ctx);
+      const { query } = ctx;
       const filter: Record<string, unknown> = {};
 
       if (query.search) {
@@ -253,7 +262,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   // Suspend user
   .post(
     '/users/:id/suspend',
-    async ({ params, body, user }) => {
+    async (ctx: any) => {
+      const { user } = await requireAdmin(ctx);
+      const { params, body } = ctx;
       const targetUser = await UserModel.findById(params.id);
 
       if (!targetUser) {
@@ -298,7 +309,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   )
 
   // Unsuspend user
-  .post('/users/:id/unsuspend', async ({ params, user }) => {
+  .post('/users/:id/unsuspend', async (ctx: any) => {
+    const { user } = await requireAdmin(ctx);
+    const { params } = ctx;
     const targetUser = await UserModel.findById(params.id);
 
     if (!targetUser) {
@@ -323,7 +336,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   // Get audit logs
   .get(
     '/audit-logs',
-    async ({ query }) => {
+    async (ctx: any) => {
+      await requireAdmin(ctx);
+      const { query } = ctx;
       const filter: Record<string, unknown> = {};
 
       if (query.category) filter.category = query.category;
@@ -366,7 +381,9 @@ export const adminRoutes = new Elysia({ prefix: '/admin' })
   )
 
   // Get security events
-  .get('/security', async ({ query }) => {
+  .get('/security', async (ctx: any) => {
+    await requireAdmin(ctx);
+    const { query } = ctx;
     const since = query.since ? new Date(query.since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const events = await AuditLogModel.find({

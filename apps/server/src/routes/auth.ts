@@ -1,10 +1,10 @@
 import { Elysia, t } from 'elysia';
 import { UserModel } from '../models';
 import { AuditLogModel } from '../models';
-import { authPlugin, generateTokens, verifyRefreshToken, requireAuth } from '../middleware/auth';
+import { jwtPlugin, getAuth, generateTokens, verifyRefreshToken } from '../middleware/auth';
 import { authRateLimiter } from '../middleware/rateLimit';
 import { redisHelpers } from '../config/redis';
-import { ERROR_CODES, registerUserSchema, loginUserSchema, updateUserSchema, changePasswordSchema } from '@airshare/shared';
+import { ERROR_CODES } from '@airshare/shared';
 import { hashPassword, verifyPassword } from '../utils/password';
 
 function errorResponse(code: string, message: string) {
@@ -12,7 +12,7 @@ function errorResponse(code: string, message: string) {
 }
 
 export const authRoutes = new Elysia({ prefix: '/auth' })
-  .use(authPlugin)
+  .use(jwtPlugin)
   .use(authRateLimiter)
 
   // Register
@@ -183,73 +183,60 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   )
 
   // Logout
-  .post('/logout', async ({ user, sessionId }) => {
-    if (user && sessionId) {
-      await redisHelpers.deleteSession(sessionId, user._id.toString());
+  .post('/logout', async (ctx: any) => {
+    const auth = await getAuth(ctx);
+    if (auth.user && auth.sessionId) {
+      await redisHelpers.deleteSession(auth.sessionId, auth.user._id.toString());
 
       AuditLogModel.log({
-        userId: user._id,
+        userId: auth.user._id,
         action: 'user.logout',
         category: 'user',
-        actor: { type: 'user', userId: user._id },
+        actor: { type: 'user', userId: auth.user._id },
       }).catch(() => {});
     }
 
     return { success: true };
   })
 
-  // Debug auth (temporary)
-  .get('/debug', async ({ jwt, headers, user, authDebug }: any) => {
-    const authorization = headers.authorization;
-    if (!authorization) return { error: 'no auth header' };
-
-    const token = authorization.slice(7);
-    try {
-      const payload = await jwt.verify(token);
-      return {
-        jwtVerify: payload ? { ok: true, payload } : { ok: false },
-        deriveResult: { hasUser: !!user, authDebug },
-      };
-    } catch (e: any) {
-      return { error: 'jwt.verify threw', message: e.message, deriveResult: { hasUser: !!user, authDebug } };
-    }
-  })
-
   // Get current user
-  .get('/me', async ({ user, set, authDebug }: any) => {
-    if (!user) {
-      set.status = 401;
-      return { success: false, error: { code: ERROR_CODES.UNAUTHORIZED, message: 'Unauthorized' }, debug: { authDebug } };
+  .get('/me', async (ctx: any) => {
+    const auth = await getAuth(ctx);
+    if (!auth.user) {
+      ctx.set.status = 401;
+      return { success: false, error: { code: ERROR_CODES.UNAUTHORIZED, message: 'Unauthorized' } };
     }
 
     return {
       success: true,
-      data: { user: user.toJSON() },
+      data: { user: auth.user.toJSON() },
     };
   })
 
   // Update profile
   .patch(
     '/me',
-    async ({ user, body, set }) => {
-      if (!user) {
-        set.status = 401;
+    async (ctx: any) => {
+      const auth = await getAuth(ctx);
+      if (!auth.user) {
+        ctx.set.status = 401;
         return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
       }
 
+      const { body } = ctx;
       if (body.displayName !== undefined) {
-        user.displayName = body.displayName;
+        auth.user.displayName = body.displayName;
       }
 
       if (body.preferences) {
-        user.preferences = { ...user.preferences, ...body.preferences };
+        auth.user.preferences = { ...auth.user.preferences, ...body.preferences };
       }
 
-      await user.save();
+      await auth.user.save();
 
       return {
         success: true,
-        data: { user: user.toJSON() },
+        data: { user: auth.user.toJSON() },
       };
     },
     {
@@ -270,25 +257,28 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   // Change password
   .post(
     '/change-password',
-    async ({ user, body, set }) => {
-      if (!user) {
-        set.status = 401;
+    async (ctx: any) => {
+      const auth = await getAuth(ctx);
+      if (!auth.user) {
+        ctx.set.status = 401;
         return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Unauthorized');
       }
 
+      const { body } = ctx;
+
       // Verify current password
-      const valid = await verifyPassword(user.passwordHash, body.currentPassword);
+      const valid = await verifyPassword(auth.user.passwordHash, body.currentPassword);
       if (!valid) {
-        set.status = 400;
+        ctx.set.status = 400;
         return errorResponse(ERROR_CODES.INVALID_CREDENTIALS, 'Current password is incorrect');
       }
 
       // Hash new password
-      user.passwordHash = await hashPassword(body.newPassword);
-      await user.save();
+      auth.user.passwordHash = await hashPassword(body.newPassword);
+      await auth.user.save();
 
       // Invalidate all sessions except current
-      await redisHelpers.deleteAllUserSessions(user._id.toString());
+      await redisHelpers.deleteAllUserSessions(auth.user._id.toString());
 
       return { success: true };
     },

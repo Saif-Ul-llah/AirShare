@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { RoomModel, ItemModel, VersionModel, AuditLogModel } from '../models';
-import { authPlugin } from '../middleware/auth';
+import { jwtPlugin, getAuth } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { s3Helpers } from '../config/s3';
 import { ERROR_CODES } from '@airshare/shared';
@@ -8,12 +8,14 @@ import { nanoid } from 'nanoid';
 import { hashPassword, verifyPassword } from '../utils/password';
 
 export const itemRoutes = new Elysia({ prefix: '/items' })
-  .use(authPlugin)
+  .use(jwtPlugin)
 
   // Create item in room
   .post(
     '/rooms/:code',
-    async ({ params, body, user }) => {
+    async (ctx: any) => {
+      const { params, body } = ctx;
+      const { user } = await getAuth(ctx);
       const room = await RoomModel.findOne({
         code: params.code.toUpperCase(),
         deletedAt: null,
@@ -121,7 +123,9 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
   // Get item by ID
   .get(
     '/:id',
-    async ({ params, query, user }) => {
+    async (ctx: any) => {
+      const { params, query } = ctx;
+      const { user } = await getAuth(ctx);
       const item = await ItemModel.findOne({
         _id: params.id,
         deletedAt: null,
@@ -199,7 +203,9 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
   // Get item by share URL
   .get(
     '/share/:shareUrl',
-    async ({ params, query, user }) => {
+    async (ctx: any) => {
+      const { params, query } = ctx;
+      const { user } = await getAuth(ctx);
       const item = await ItemModel.findOne({
         shareUrl: params.shareUrl,
         deletedAt: null,
@@ -258,7 +264,9 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
   // Update item
   .patch(
     '/:id',
-    async ({ params, body, user }) => {
+    async (ctx: any) => {
+      const { params, body } = ctx;
+      const { user } = await getAuth(ctx);
       const item = await ItemModel.findOne({
         _id: params.id,
         deletedAt: null,
@@ -345,7 +353,9 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
   )
 
   // Delete item
-  .delete('/:id', async ({ params, user }) => {
+  .delete('/:id', async (ctx: any) => {
+    const { params } = ctx;
+    const { user } = await getAuth(ctx);
     const item = await ItemModel.findOne({
       _id: params.id,
       deletedAt: null,
@@ -408,7 +418,9 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
   })
 
   // Restore item version
-  .post('/:id/versions/:version/restore', async ({ params, user }) => {
+  .post('/:id/versions/:version/restore', async (ctx: any) => {
+    const { params } = ctx;
+    const { user } = await getAuth(ctx);
     const item = await ItemModel.findOne({
       _id: params.id,
       deletedAt: null,
@@ -451,7 +463,9 @@ export const itemRoutes = new Elysia({ prefix: '/items' })
   })
 
   // Download file
-  .get('/:id/download', async ({ params, query, user, set }) => {
+  .get('/:id/download', async (ctx: any) => {
+    const { params, query, set } = ctx;
+    const { user } = await getAuth(ctx);
     const item = await ItemModel.findOne({
       _id: params.id,
       deletedAt: null,

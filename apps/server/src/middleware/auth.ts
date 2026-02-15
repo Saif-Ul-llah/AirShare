@@ -58,41 +58,38 @@ export async function resolveAuthContext(
   }
 }
 
-export const authPlugin = new Elysia({ name: 'auth-plugin' })
+// JWT plugin only — provides `jwt` in context for sign/verify
+export const jwtPlugin = new Elysia({ name: 'jwt-plugin' })
   .use(jwt({
     name: 'jwt',
     secret: env.JWT_SECRET,
-  }))
-  .derive(() => ({
-    user: null as AuthContext['user'],
-    sessionId: null as string | null,
-    authDebug: 'not-checked',
-  }))
-  .onBeforeHandle(async (context) => {
-    const authorization = typeof context.headers.authorization === 'string'
-      ? context.headers.authorization
-      : undefined;
-    const auth = await resolveAuthContext(context.jwt, authorization);
-    Object.assign(context as Record<string, unknown>, auth);
-  });
+  }));
 
-// Middleware that requires authentication
-export const requireAuth = new Elysia({ name: 'require-auth' })
-  .use(authPlugin)
-  .onBeforeHandle(({ user }) => {
-    if (!user) {
-      throw AppError.unauthorized();
-    }
-  });
+// Helper: call from any handler to get auth context
+export async function getAuth(ctx: { jwt: { verify: (token: string) => Promise<JWTPayload | false> }; headers: Record<string, string | undefined> }): Promise<AuthContext> {
+  const authorization = typeof ctx.headers.authorization === 'string'
+    ? ctx.headers.authorization
+    : undefined;
+  return resolveAuthContext(ctx.jwt, authorization);
+}
 
-// Middleware that requires admin role
-export const requireAdmin = new Elysia({ name: 'require-admin' })
-  .use(requireAuth)
-  .onBeforeHandle(({ user }) => {
-    if ((user as { role?: string })?.role !== 'admin') {
-      throw AppError.forbidden('Admin access required');
-    }
-  });
+// Helper: call from any handler to require auth (throws if not authenticated)
+export async function requireAuth(ctx: { jwt: { verify: (token: string) => Promise<JWTPayload | false> }; headers: Record<string, string | undefined> }): Promise<{ user: NonNullable<AuthContext['user']>; sessionId: string }> {
+  const auth = await getAuth(ctx);
+  if (!auth.user) {
+    throw AppError.unauthorized();
+  }
+  return { user: auth.user, sessionId: auth.sessionId! };
+}
+
+// Helper: require admin role
+export async function requireAdmin(ctx: { jwt: { verify: (token: string) => Promise<JWTPayload | false> }; headers: Record<string, string | undefined> }): Promise<{ user: NonNullable<AuthContext['user']>; sessionId: string }> {
+  const { user, sessionId } = await requireAuth(ctx);
+  if ((user as { role?: string }).role !== 'admin') {
+    throw AppError.forbidden('Admin access required');
+  }
+  return { user, sessionId };
+}
 
 // Helper to generate tokens
 export async function generateTokens(

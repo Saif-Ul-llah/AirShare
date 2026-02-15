@@ -8,6 +8,7 @@ import { WebSocketProvider } from './WebSocketProvider';
 import { EncryptionProvider } from './EncryptionProvider';
 import { OfflineProvider } from './OfflineProvider';
 import { OfflineIndicator } from '@/components/offline';
+import { InstallPrompt } from '@/components/pwa';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <WebSocketProvider>
                 {children}
                 <OfflineIndicator />
+                <InstallPrompt />
               </WebSocketProvider>
             </EncryptionProvider>
           </AuthInitializer>

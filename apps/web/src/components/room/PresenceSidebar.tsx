@@ -95,8 +95,8 @@ function UserItem({
   isCurrentUser: boolean;
   joinedAt: Date;
 }) {
-  const name = displayName || `User ${odId.slice(0, 4)}`;
-  const initial = name[0].toUpperCase();
+  const name = displayName || `User ${(odId || '').slice(0, 4)}`;
+  const initial = (name[0] || '?').toUpperCase();
 
   // Generate a consistent color based on the odId
   const colors = [
@@ -118,7 +118,7 @@ function UserItem({
     'bg-pink-500',
     'bg-rose-500'
   ];
-  const colorIndex = odId.charCodeAt(0) % colors.length;
+  const colorIndex = (odId || '').charCodeAt(0) % colors.length || 0;
   const avatarColor = colors[colorIndex];
 
   return (
@@ -192,7 +192,7 @@ export function PresenceIndicator() {
     <div className="flex items-center">
       <div className="flex -space-x-2">
         {visibleUsers.map((peer, index) => {
-          const name = peer.displayName || `User ${peer.odId.slice(0, 4)}`;
+          const name = peer.displayName || `User ${(peer.odId || '').slice(0, 4)}`;
           const initial = name[0].toUpperCase();
 
           return (

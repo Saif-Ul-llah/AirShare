@@ -196,7 +196,10 @@ export const roomRoutes = new Elysia({ prefix: '/rooms' })
             encryptionSalt: room.encryptionSalt,
           },
           items: items.map((item) => item.toJSON()),
-          presence: Object.values(presence),
+          presence: Object.entries(presence).map(([peerId, data]) => ({
+            peerId,
+            ...(data as object),
+          })),
         },
       };
     },

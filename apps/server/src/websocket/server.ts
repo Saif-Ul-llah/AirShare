@@ -48,11 +48,22 @@ export function setupWebSocket(httpServer: HTTPServer): Server {
       try {
         const { roomCode, peerId, displayName } = data;
 
-        // Verify room exists
-        const room = await RoomModel.findOne({
-          code: roomCode.toUpperCase(),
-          deletedAt: null,
-        });
+        // Verify room exists - support both code and name
+        const input = roomCode.trim();
+        const isRoomCode = /^[A-Z0-9]{8}$/i.test(input);
+
+        let room;
+        if (isRoomCode) {
+          room = await RoomModel.findOne({
+            code: input.toUpperCase(),
+            deletedAt: null,
+          });
+        } else {
+          room = await RoomModel.findOne({
+            name: { $regex: new RegExp(`^${input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            deletedAt: null,
+          });
+        }
 
         if (!room) {
           socket.emit(WS_EVENTS.ERROR, { code: 'ROOM_NOT_FOUND', message: 'Room not found' });

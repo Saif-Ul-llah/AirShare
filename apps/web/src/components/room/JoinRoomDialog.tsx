@@ -25,45 +25,45 @@ export function JoinRoomDialog({ open, onOpenChange }: JoinRoomDialogProps) {
   const router = useRouter();
   const { joinRoom, isLoading, error, clearError } = useRoomStore();
 
-  const [code, setCode] = useState('');
+  const [input, setInput] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [needsPassword, setNeedsPassword] = useState(false);
+
+  // Detect if input looks like a room code (8 alphanumeric chars)
+  const isCodeInput = /^[A-Z0-9]{1,8}$/i.test(input.replace(/[^A-Z0-9]/gi, ''));
+  const normalizedCode = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const isValidCode = normalizedCode.length === 8;
+  const isValidName = input.trim().length >= 1;
+  const canSubmit = isValidCode || isValidName;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
 
-    const normalizedCode = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Use room code if it's exactly 8 alphanumeric chars, otherwise treat as room name
+    const query = isValidCode ? normalizedCode : input.trim();
 
-    if (normalizedCode.length !== 8) {
-      return;
-    }
+    if (!query) return;
 
-    const success = await joinRoom(normalizedCode, needsPassword ? password : undefined);
+    const success = await joinRoom(query, needsPassword ? password : undefined);
 
     if (success) {
       onOpenChange(false);
-      router.push(`/room/${normalizedCode}`);
+      // Navigate using the actual room code from the store
+      const { currentRoom } = useRoomStore.getState();
+      router.push(`/room/${currentRoom?.code || query}`);
     } else if (error?.includes('password')) {
       setNeedsPassword(true);
     }
   };
 
   const handleClose = () => {
-    setCode('');
+    setInput('');
     setPassword('');
     setNeedsPassword(false);
     clearError();
     onOpenChange(false);
-  };
-
-  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Format code input: uppercase, alphanumeric only
-    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (value.length <= 8) {
-      setCode(value);
-    }
   };
 
   return (
@@ -72,28 +72,34 @@ export function JoinRoomDialog({ open, onOpenChange }: JoinRoomDialogProps) {
         <DialogHeader>
           <DialogTitle>Join a Room</DialogTitle>
           <DialogDescription>
-            Enter the 8-character room code to join
+            Enter a room code or room name to join
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <DialogBody className="space-y-4">
-            {/* Room Code */}
+            {/* Room Code or Name */}
             <div>
               <label className="block text-sm font-medium mb-2">
-                Room Code
+                Room Code or Name
               </label>
               <Input
-                placeholder="ABCD1234"
-                value={code}
-                onChange={handleCodeChange}
-                className="text-center text-2xl tracking-[0.5em] font-mono uppercase"
-                maxLength={8}
+                placeholder="ABCD1234 or My Room"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                className={isCodeInput && input.length > 0
+                  ? "text-center text-2xl tracking-[0.3em] font-mono uppercase"
+                  : ""
+                }
+                maxLength={100}
                 autoComplete="off"
                 autoFocus
               />
               <p className="mt-1 text-xs text-muted-foreground text-center">
-                {code.length}/8 characters
+                {isCodeInput && input.length > 0
+                  ? `${normalizedCode.length}/8 code characters`
+                  : 'Enter room name or 8-character code'
+                }
               </p>
             </div>
 
@@ -145,7 +151,7 @@ export function JoinRoomDialog({ open, onOpenChange }: JoinRoomDialogProps) {
             <Button
               type="submit"
               isLoading={isLoading}
-              disabled={code.length !== 8 || (needsPassword && password.length < 4)}
+              disabled={!canSubmit || (needsPassword && password.length < 4)}
             >
               Join Room
               <ArrowRight className="h-4 w-4" />

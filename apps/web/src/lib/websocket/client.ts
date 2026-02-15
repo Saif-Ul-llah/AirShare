@@ -2,7 +2,19 @@ import { io, Socket } from 'socket.io-client';
 import type { Item, WebRTCSignal } from '@airshare/shared';
 import { WS_EVENTS } from '@airshare/shared';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
+function resolveWebSocketUrl(): string {
+  const explicitUrl = process.env.NEXT_PUBLIC_WS_URL?.trim();
+  const fallbackUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const rawUrl = explicitUrl || fallbackUrl || 'http://localhost:4000';
+
+  try {
+    return new URL(rawUrl).origin;
+  } catch {
+    return rawUrl;
+  }
+}
+
+const WS_URL = resolveWebSocketUrl();
 
 export interface PeerInfo {
   peerId: string;
@@ -38,7 +50,9 @@ class WebSocketClient {
     if (this.socket?.connected) return;
 
     this.socket = io(WS_URL, {
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
+      withCredentials: true,
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: this.reconnectDelay,

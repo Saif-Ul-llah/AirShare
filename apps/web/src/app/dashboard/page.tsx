@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading: authLoading, isInitialized, logout } = useAuthStore();
   const { myRooms, myRoomsLoading, fetchMyRooms } = useRoomStore();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -33,10 +33,10 @@ export default function DashboardPage() {
 
   // Redirect if not authenticated (only after auth is fully initialized)
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (isInitialized && !authLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, isInitialized, router]);
 
   // Fetch user's rooms
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function DashboardPage() {
     router.push('/');
   };
 
-  if (authLoading || !isAuthenticated) {
+  if (!isInitialized || authLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Loading...</div>

@@ -22,6 +22,7 @@ const envSchema = z.object({
 
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  CORS_ORIGINS: z.string().optional(),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
@@ -31,3 +32,27 @@ const envSchema = z.object({
 export const env = envSchema.parse(process.env);
 
 export type Env = z.infer<typeof envSchema>;
+
+const DEFAULT_CORS_ORIGINS = ['http://localhost:3000'];
+
+function parseOriginList(value?: string): string[] {
+  if (!value) return [];
+
+  return value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+export function getAllowedOrigins(): string[] {
+  const origins = new Set<string>([
+    ...parseOriginList(env.CORS_ORIGIN),
+    ...parseOriginList(env.CORS_ORIGINS),
+  ]);
+
+  if (origins.size === 0) {
+    return DEFAULT_CORS_ORIGINS;
+  }
+
+  return Array.from(origins);
+}

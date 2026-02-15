@@ -85,8 +85,9 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         set({
           currentRoom: response.data.room,
           items: response.data.items || [],
-          presence: (response.data.presence || []).map((p) => ({
-            ...p,
+          presence: (response.data.presence || []).map((p: any) => ({
+            odId: p.odId || p.peerId,
+            displayName: p.displayName,
             joinedAt: new Date(p.joinedAt),
           })),
           isLoading: false,

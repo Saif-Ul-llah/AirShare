@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { RoomModel, ItemModel, UploadModel, UserModel, AuditLogModel } from '../models';
-import { authPlugin } from '../middleware/auth';
+import { jwtPlugin, getAuth } from '../middleware/auth';
 import { uploadRateLimiter } from '../middleware/rateLimit';
 import { AppError } from '../middleware/errorHandler';
 import { s3Helpers } from '../config/s3';
@@ -8,13 +8,15 @@ import { ERROR_CODES, UPLOAD_CHUNK_SIZE, MAX_FILE_SIZE } from '@airshare/shared'
 import { nanoid } from 'nanoid';
 
 export const uploadRoutes = new Elysia({ prefix: '/upload' })
-  .use(authPlugin)
+  .use(jwtPlugin)
   .use(uploadRateLimiter)
 
   // Initialize upload
   .post(
     '/init',
-    async ({ body, user }) => {
+    async (ctx: any) => {
+      const { body } = ctx;
+      const { user } = await getAuth(ctx);
       const room = await RoomModel.findOne({
         code: body.roomCode.toUpperCase(),
         deletedAt: null,
@@ -168,7 +170,9 @@ export const uploadRoutes = new Elysia({ prefix: '/upload' })
   // Complete upload
   .post(
     '/complete',
-    async ({ body, user }) => {
+    async (ctx: any) => {
+      const { body } = ctx;
+      const { user } = await getAuth(ctx);
       const upload = await UploadModel.findOne({ uploadId: body.uploadId });
 
       if (!upload) {
